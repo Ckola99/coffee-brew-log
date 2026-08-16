@@ -1,41 +1,62 @@
 # Deployment
 
-**Live URL:** _add your deployed URL here once deployed, e.g. `https://coffee-brew-log.onrender.com`_
+**Live URL:** _add your deployed frontend URL here once deployed, e.g. `https://coffee-brew-log.vercel.app`_
 
-## Suggested approach: Render.com (free tier)
+## Approach: Vercel (frontend + backend) + Neon (Postgres)
 
-### 1. Database
-Create a **Render PostgreSQL** instance (free tier). Copy the "Internal Database URL" it gives you.
+Two separate Vercel projects point at the same GitHub repo — one for `frontend`,
+one for `backend` — plus a free Neon Postgres database.
 
-### 2. Backend (Web Service)
-- New → Web Service → connect this repo, root directory `backend`
-- Build command: `npm install`
-- Start command: `npm start`
-- Environment variables:
-  - `DB_DIALECT=postgres`
-  - `DATABASE_URL=` (paste the Render Postgres internal URL)
-  - `CORS_ORIGIN=` (your deployed frontend URL, once you have it)
-  - `PORT` — Render sets this automatically, no need to set it yourself
+### 1. Database (Neon)
 
-### 3. Frontend (Static Site)
-- New → Static Site → connect this repo, root directory `frontend`
-- Build command: `npm install && npm run build`
-- Publish directory: `dist`
-- Environment variables:
-  - `VITE_API_URL=` (your deployed backend URL from step 2)
+1. Create a free account at neon.tech and create a new project.
+2. Copy the connection string it gives you (starts with `postgres://` and
+   includes `?sslmode=require`).
 
-### 4. Wire them together
-Once both are deployed, update `CORS_ORIGIN` on the backend to the frontend's
-real URL and redeploy the backend so the browser isn't blocked by CORS.
+### 2. Backend (Vercel project)
+
+1. Vercel dashboard → Add New → Project → import this repo.
+2. Set **Root Directory** to `backend`.
+3. Framework preset: "Other" (Vercel should auto-detect the `/api` function).
+4. Environment variables:
+   - `DB_DIALECT=postgres`
+   - `DATABASE_URL=` (the Neon connection string from step 1)
+   - `CORS_ORIGIN=` (leave as `http://localhost:5173` for now, update in step 4)
+5. Deploy. Once live, copy the deployment URL, e.g. `https://brew-log-backend.vercel.app`.
+6. Sanity check: visit `https://<backend-url>/api/health` — should return `{"status":"ok"}`.
+
+### 3. Frontend (Vercel project)
+
+1. Add New → Project → same repo again, but this time set **Root Directory** to `frontend`.
+2. Vercel auto-detects Vite — leave build command (`npm run build`) and output
+   directory (`dist`) as default.
+3. Environment variable: `VITE_API_URL=` (the backend URL from step 2, no
+   trailing slash).
+4. Deploy. Copy the resulting frontend URL.
+
+### 4. Wire CORS together
+
+Go back to the **backend** Vercel project → Settings → Environment Variables →
+update `CORS_ORIGIN` to the frontend URL from step 3 → redeploy (Vercel
+prompts you, or trigger it from the Deployments tab).
+
+### 5. Verify
+
+Open the frontend URL. Add a brew, filter by method, edit it, delete it —
+each of those hits the backend, which hits Neon.
 
 ## Troubleshooting notes (fill in as you go)
 
-- If the frontend can't reach the API: check `VITE_API_URL` was set **before**
-  the static site build ran — Vite bakes env vars in at build time, so changing
-  it afterwards requires a rebuild, not just a restart.
-- If Postgres connection fails on Render: make sure `DB_DIALECT=postgres` and
-  `DATABASE_URL` are both set, and that SSL isn't being rejected (the backend
-  config already sets `rejectUnauthorized: false` for Render's self-signed cert).
-- If migrations/tables don't appear: the backend runs `sequelize.sync()` on
-  startup, which creates the `brews` table automatically — check the deploy
-  logs for the "listening on port" message to confirm startup succeeded.
+- **CORS errors in the browser console**: `CORS_ORIGIN` on the backend must
+  exactly match the frontend's URL (including `https://`, no trailing slash),
+  and the backend needs a redeploy after changing it — env var changes don't
+  apply to already-running functions.
+- **500 errors on every request**: usually means `DATABASE_URL` is wrong or
+  Neon's connection string changed. Check the backend's Vercel function logs
+  (Project → Deployments → the deployment → Functions tab).
+- **`VITE_API_URL` not taking effect**: Vite bakes environment variables in at
+  *build* time, not runtime — changing the env var alone won't update a live
+  site, you need to trigger a redeploy of the frontend.
+- **Cold starts**: Vercel's free tier serverless functions spin down when
+  idle, so the first request after a while can take a couple of seconds while
+  it wakes up — this is normal, not a bug.

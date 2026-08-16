@@ -17,12 +17,22 @@ Users can:
 | Layer     | Choice                                   |
 | --------- | ----------------------------------------- |
 | Front-end | React (Vite) + Tailwind CSS               |
-| Back-end  | Node.js + Express                         |
-| ORM / DB  | Sequelize ORM, SQLite (dev) / PostgreSQL (prod-ready) |
+| Back-end  | Node.js + Express (runs as a Vercel serverless function in prod) |
+| ORM / DB  | Sequelize ORM, SQLite (dev) / PostgreSQL via Neon (prod) |
+| Hosting   | Vercel (frontend + backend), Neon (database) |
 
 > Note: the brief required an ORM backed by a SQL database, so this uses Sequelize
-> over SQLite locally (Postgres in production, if you deploy to a host with a managed
-> Postgres add-on) rather than MongoDB.
+> over SQLite locally and Postgres (via Neon) in production, rather than MongoDB.
+
+### Why the backend has both `server.js` and `api/index.js`
+
+Vercel runs backends as serverless functions rather than a long-lived process,
+so it can't call `app.listen()`. To support both:
+
+- `app.js` — the Express app itself (routes, middleware), with no `listen()` call
+- `server.js` — local dev entry point: imports `app.js` and calls `app.listen()`
+- `api/index.js` — Vercel's entry point: imports `app.js` and exports it as a
+  serverless function handler (per `vercel.json`'s rewrite rule)
 
 ## Project structure
 
