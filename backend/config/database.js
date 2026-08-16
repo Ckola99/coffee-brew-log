@@ -7,7 +7,11 @@ const dialect = process.env.DB_DIALECT || 'sqlite';
 let sequelize;
 
 if (dialect === 'postgres') {
+  require('pg');
+  require('pg-hstore');
+  
   // Production (e.g. Render Postgres) — reads the full connection string from ENV.
+
   if (!process.env.DATABASE_URL) {
     throw new Error('DATABASE_URL must be set when DB_DIALECT=postgres');
   }
