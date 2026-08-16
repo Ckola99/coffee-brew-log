@@ -16,10 +16,10 @@ if (dialect === 'postgres') {
     protocol: 'postgres',
     logging: false,
     dialectOptions: {
-      ssl:
-        process.env.NODE_ENV === 'production'
-          ? { require: true, rejectUnauthorized: false }
-          : false,
+      // Neon (and most hosted Postgres) require SSL. Neon's certs are
+      // properly signed, but rejectUnauthorized: false is kept for
+      // compatibility with other hosts (like Render's self-signed cert).
+      ssl: { require: true, rejectUnauthorized: false },
     },
   });
 } else {
