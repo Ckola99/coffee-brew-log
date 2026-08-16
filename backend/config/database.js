@@ -23,7 +23,7 @@ if (dialect === 'postgres') {
     },
   });
 } else {
-  // Local development — a file-based SQLite database, zero setup required.
+  // Local development — a file-based SQLite database.
   const storagePath =
     process.env.DB_STORAGE || path.join(__dirname, '..', 'data', 'brewlog.sqlite');
 
