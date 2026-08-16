@@ -1,6 +1,6 @@
 # Deployment
 
-**Live URL:** _add your deployed frontend URL here once deployed, e.g. `https://coffee-brew-log.vercel.app`_
+**Live URL:** https://coffee-brew-log-lujt.vercel.app/
 
 ## Approach: Vercel (frontend + backend) + Neon (Postgres)
 
@@ -17,12 +17,12 @@ one for `backend` — plus a free Neon Postgres database.
 
 1. Vercel dashboard → Add New → Project → import this repo.
 2. Set **Root Directory** to `backend`.
-3. Framework preset: "Other" (Vercel should auto-detect the `/api` function).
+3. Framework preset: "Other" (Vercel auto-detects the `/api` function).
 4. Environment variables:
    - `DB_DIALECT=postgres`
    - `DATABASE_URL=` (the Neon connection string from step 1)
-   - `CORS_ORIGIN=` (leave as `http://localhost:5173` for now, update in step 4)
-5. Deploy. Once live, copy the deployment URL, e.g. `https://brew-log-backend.vercel.app`.
+   - `CORS_ORIGIN=` (the frontend URL from step 3, no trailing slash)
+5. Deploy. Once live, copy the deployment URL.
 6. Sanity check: visit `https://<backend-url>/api/health` — should return `{"status":"ok"}`.
 
 ### 3. Frontend (Vercel project)
@@ -32,28 +32,45 @@ one for `backend` — plus a free Neon Postgres database.
    directory (`dist`) as default.
 3. Environment variable: `VITE_API_URL=` (the backend URL from step 2, no
    trailing slash).
-4. Deploy. Copy the resulting frontend URL.
+4. Deploy. Copy the resulting frontend URL, then update `CORS_ORIGIN` on the
+   backend project to match it and redeploy the backend.
 
-### 4. Wire CORS together
-
-Go back to the **backend** Vercel project → Settings → Environment Variables →
-update `CORS_ORIGIN` to the frontend URL from step 3 → redeploy (Vercel
-prompts you, or trigger it from the Deployments tab).
-
-### 5. Verify
+### 4. Verify
 
 Open the frontend URL. Add a brew, filter by method, edit it, delete it —
 each of those hits the backend, which hits Neon.
 
-## Troubleshooting notes (fill in as you go)
+## Issues I actually hit and how I fixed them
 
-- **CORS errors in the browser console**: `CORS_ORIGIN` on the backend must
-  exactly match the frontend's URL (including `https://`, no trailing slash),
-  and the backend needs a redeploy after changing it — env var changes don't
-  apply to already-running functions.
+- **GitHub org permissions**: the assessment repo lives under the
+  `Umuzi-classroom` GitHub organization. Vercel needs org-admin access to
+  import a repo from an org, which I don't have as a student. Fix: pushed the
+  same commit history to a personal repo (`Ckola99/coffee-brew-log`) and
+  deployed from that instead.
+
+- **`Error: Please install pg package manually`**: the backend deployed
+  successfully but crashed on every request. Sequelize loads its Postgres
+  driver (`pg`) dynamically based on a config value, and Vercel's dependency
+  bundler (`@vercel/nft`) can't detect that dynamic `require` at build time —
+  so it left `pg` out of the deployed function even though it was listed in
+  `package.json` and installed locally. Fix: added an explicit
+  `require('pg')` (and `require('pg-hstore')`) at the top of
+  `backend/config/database.js` so the bundler's static analysis picks it up.
+
+- **CORS blocked all requests from the frontend**: after both projects were
+  live, the browser console showed `No 'Access-Control-Allow-Origin' header
+  is present`. This happens when `CORS_ORIGIN` on the backend doesn't exactly
+  match the frontend's URL — even a trailing slash is enough to break it,
+  since it's a straight string comparison. Fix: double-checked the exact
+  value in Vercel's environment variables, redeployed the backend, and also
+  updated the CORS code to trim whitespace and strip trailing slashes so a
+  small copy-paste difference doesn't silently break it again.
+
+## Troubleshooting notes for future reference
+
 - **500 errors on every request**: usually means `DATABASE_URL` is wrong or
   Neon's connection string changed. Check the backend's Vercel function logs
-  (Project → Deployments → the deployment → Functions tab).
+  (Project → Logs, not the build log — the crash happens at runtime).
 - **`VITE_API_URL` not taking effect**: Vite bakes environment variables in at
   *build* time, not runtime — changing the env var alone won't update a live
   site, you need to trigger a redeploy of the frontend.
